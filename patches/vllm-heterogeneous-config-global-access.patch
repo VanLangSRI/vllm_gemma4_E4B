@@ -1,0 +1,32 @@
+--- a/transformers_utils/config.py
++++ b/transformers_utils/config.py
+@@ -808,6 +808,29 @@
+     if trust_remote_code:
+         maybe_register_config_serialize_by_value()
+ 
++    # transformers >= 5.15.1 raises AmbiguousGlobalPerLayerAttributeError when
++    # any code reads a per-layer attribute (e.g. gemma4's head_dim, which is
++    # 256 for sliding-window layers and 512 for full-attention layers) from a
++    # heterogeneous config. vLLM's per-arch convertors handle heterogeneous dims
++    # explicitly, so opting into global access here is safe and unblocks every
++    # getattr site in the engine at once. The guard lives on whichever config
++    # object carries the heterogeneity spec -- the root, its text_config, and
++    # any registered sub-configs -- so unlock all of them.
++    def _allow_global_access(c):
++        if c is not None and getattr(c, "_heterogeneity_spec", None) is not None:
++            c.allow_global_per_layer_attribute_access = True
++
++    # NOTE: only the root and the TEXT config are unlocked. The vision/audio
++    # tower sub-configs keep the guard: their towers are instantiated by
++    # transformers itself (AutoModel), whose own modeling code reads
++    # heterogeneous dims per layer correctly -- unlocking them there would make
++    # it build with a single global head_dim instead.
++    _allow_global_access(config)
++    try:
++        _allow_global_access(config.get_text_config())
++    except Exception:
++        pass
++
+     return config
+ 
+ 

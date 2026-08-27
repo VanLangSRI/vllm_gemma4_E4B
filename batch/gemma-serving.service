@@ -1,0 +1,19 @@
+[Unit]
+Description=Gemma 4 E4B vLLM server (batch mode, RTX 3090)
+After=network-online.target
+
+[Service]
+Type=simple
+# Wait for the GPU to actually be free before starting. If vLLM profiles
+# memory while another process (e.g. the Qwen container) is still releasing
+# VRAM, it permanently allocates a smaller cache pool and you silently lose
+# throughput.
+ExecStartPre=/bin/bash -c "for i in $(seq 1 60); do u=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits); [ \"$u\" -lt 1000 ] && exit 0; sleep 2; done; exit 1"
+ExecStart=/bin/bash %h/vllm_3090/batch/start_gemma.sh
+Restart=on-failure
+RestartSec=20
+StandardOutput=append:%h/vllm_3090/gemma.log
+StandardError=append:%h/vllm_3090/gemma.log
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,5 @@
+gemma.log
+venv/
+models/
+__pycache__*
+ollama_serve.log

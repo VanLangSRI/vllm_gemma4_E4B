@@ -1,0 +1,27 @@
+--- a/transformers_utils/model_arch_config_convertor.py
++++ b/transformers_utils/model_arch_config_convertor.py
+@@ -605,8 +605,22 @@
+         # Gemma4 uses dual head dimensions: head_dim (sliding attention)
+         # and global_head_dim (full attention).  Return the largest so
+         # that attention backends allocate buffers large enough for both.
+-        head_dim = getattr(self.hf_text_config, "head_dim", 0)
+-        global_head_dim = getattr(self.hf_text_config, "global_head_dim", 0)
++        # transformers >= 5.15.1 marks head_dim as a per-layer attribute on
++        # heterogeneous architectures like gemma4 and raises
++        # AmbiguousGlobalPerLayerAttributeError on plain getattr -- even though
++        # this checkpoint carries static top-level values (head_dim 256 for
++        # sliding layers, global_head_dim 512 for full). Fall back to reading
++        # both dims from the raw serialized config when the guard fires.
++        def _dim(key):
++            try:
++                return int(getattr(self.hf_text_config, key, 0) or 0)
++            except Exception:
++                try:
++                    return int(self.hf_text_config.to_dict().get(key) or 0)
++                except Exception:
++                    return 0
++        head_dim = _dim("head_dim")
++        global_head_dim = _dim("global_head_dim")
+         return max(head_dim, global_head_dim) or super().get_head_size()
+ 
+ 

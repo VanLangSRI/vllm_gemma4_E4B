@@ -1,0 +1,17 @@
+--- a/jit/attention/modules.py
++++ b/jit/attention/modules.py
+@@ -1203,8 +1203,13 @@
+     if head_dim_qk > 256 or head_dim_vo > 256:
+         if dtype_kv.itemsize == 1:
+             if not (allow_nvfp4_sm8_large_head and _is_nvfp4_kv_dtype(dtype_kv)):
++                # PATCH(repo): upstream restricts 1-byte-KV large-head FA2 to
++                # SM100+, but this repo runs Gemma4's 512-dim full-attention
++                # layers with fp8 KV on an RTX 3090 Ti (sm86). Allow Ampere so
++                # the FA2 template can compile there; correctness is verified
++                # by the repo's quality battery.
+                 return current_compilation_context.get_nvcc_flags_list(
+-                    supported_major_versions=[10, 11, 12]
++                    supported_major_versions=[8, 9, 10, 11, 12]
+                 )
+         return current_compilation_context.get_nvcc_flags_list(
+             supported_major_versions=[8, 9, 10, 11, 12]

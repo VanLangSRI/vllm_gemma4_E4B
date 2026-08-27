@@ -1,0 +1,32 @@
+--- a/model_executor/models/gemma4.py
++++ b/model_executor/models/gemma4.py
+@@ -573,7 +573,18 @@
+         layer_type = config.layer_types[layer_idx]
+         self.is_full_attention = layer_type == "full_attention"
+         if self.is_full_attention:
+-            head_dim = getattr(config, "global_head_dim", config.head_dim)
++            head_dim = getattr(config, "global_head_dim", None)
++            if not head_dim:
++                # transformers >= 5.15.1 dropped the global_* attrs and encodes
++                # the dual head dims as per_layer_overrides (full-attention
++                # layers carry head_dim=512 in their per-layer view).
++                plc = getattr(config, "per_layer_config", None)
++                if plc is not None:
++                    try:
++                        head_dim = plc[self.layer_idx].head_dim
++                    except Exception:
++                        head_dim = None
++            head_dim = head_dim or getattr(config, "head_dim")
+         else:
+             head_dim = config.head_dim
+ 
+@@ -1502,9 +1513,6 @@
+                     if name not in params_dict:
+                         continue
+                     param = params_dict[name]
+-                    if loaded_weight.shape != param.shape:
+-                        import sys as _sys
+-                        print(f"DEBUG_SHAPE_MISMATCH {name}: ckpt {tuple(loaded_weight.shape)} vs param {tuple(param.shape)}", file=_sys.stderr, flush=True)
+                     weight_loader = getattr(
+                         param, "weight_loader", default_weight_loader
+                     )
