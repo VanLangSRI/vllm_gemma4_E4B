@@ -30,13 +30,17 @@ RUN set -e; SP=$(venv/bin/python -c 'import vllm, os; print(os.path.dirname(vllm
     for spec in "patches/marlin-int8-layer-select.patch|$SP" "patches/marlin-int8-negative-scales.patch|$SP" \
                 "patches/vllm-heterogeneous-config-global-access.patch|$SP" \
                 "patches/vllm-gemma4-per-layer-head-dim.patch|$SP" \
+                "patches/vllm-gemma4-heterogeneous-head-dim.patch|$SP" \
                 "patches/flashinfer-fa2-sm86-fp8-kv.patch|$FSP"; do \
       p="${spec%%|*}"; d="${spec##*|}"; echo "== $p"; \
       if venv/bin/python patches/_check_applied.py "$p" "$d" 2>/dev/null || patch -p1 -N --dry-run -s -d "$d" < "$p" >/dev/null 2>&1; then \
         patch -p1 -d "$d" < "$p" || true; \
       else echo "WARN $p not applicable (version drift)"; fi; \
     done; \
-    venv/bin/pip install av pyarrow; \
+    # soundfile is what vllm/multimodal/audio.py imports; without it audio is
+    # dropped from requests SILENTLY (verify.sh calls that a FAILURE, which used
+    # to abort this build). librosa is its resampler.
+    venv/bin/pip install av pyarrow soundfile librosa; \
     bash verify.sh --install
 
 # HOME is a volume: torch.compile cache (~/.cache/vllm), Triton (~/.triton),

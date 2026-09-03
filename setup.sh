@@ -50,7 +50,7 @@ fi
 # Required patches: transformers-heterogeneity workarounds (see README) and
 # the flashinfer sm86 large-head fp8-KV arch unlock for RTX 3090 Ti.
 FSP=$(venv/bin/python -c 'import flashinfer, os; print(os.path.dirname(flashinfer.__file__))' 2>/dev/null)
-for spec in   "patches/vllm-heterogeneous-config-global-access.patch|$VSP"   "patches/vllm-gemma4-per-layer-head-dim.patch|$VSP"   "patches/flashinfer-fa2-sm86-fp8-kv.patch|$FSP"; do
+for spec in   "patches/vllm-heterogeneous-config-global-access.patch|$VSP"   "patches/vllm-gemma4-per-layer-head-dim.patch|$VSP"   "patches/vllm-gemma4-heterogeneous-head-dim.patch|$VSP"   "patches/flashinfer-fa2-sm86-fp8-kv.patch|$FSP"; do
   p="${spec%%|*}"; d="${spec##*|}"
   [ -d "$d" ] || { echo "  $(basename "$p"): target missing, skipped"; continue; }
   if venv/bin/python patches/_check_applied.py "$p" "$d" 2>/dev/null; then

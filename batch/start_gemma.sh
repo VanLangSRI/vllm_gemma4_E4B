@@ -94,6 +94,20 @@ fi
 # On ordinary generation every rejected draft is wasted compute, hence OFF by
 # default. Note it also forces GPU_UTIL down (spec state needs VRAM the KV pool
 # would otherwise take) and downgrades cudagraphs to PIECEWISE on FlashInfer.
+#
+# SPEC_TOKENS is not worth tuning down to rescue chat: at 3 instead of 8 the
+# acceptance rate stays ~0.06/position and chat still loses 45-57% (measured
+# 92.6 -> 50.5 at C1, 711.5 -> 390.9 at C8), while copy keeps most of its win
+# (699 -> 857 at C8). The KV pool also shrinks 1,059,778 -> 898,939 tokens from
+# the GPU_UTIL drop alone. Below ~50% acceptance speculation cannot pay for its
+# verify pass, and n-gram lookup only clears that bar when the answer is already
+# in the prompt.
+#
+# No other speculator is available for this checkpoint: vLLM 0.27.1 does ship
+# gemma4_mtp/gemma4_dspark and Gemma4ForCausalLM declares SupportsEagle3, but
+# all of them need drafter weights, and the QAT checkpoint has none (0 of its
+# 2763 tensors are mtp/nextn/eagle). `suffix` decoding exists but is rejected
+# under --async-scheduling, which is worth more than the speculator would be.
 SPEC=${SPEC:-}
 SPEC_ARGS=""
 if [ "$SPEC" = "ngram" ]; then

@@ -1,0 +1,19 @@
+# Keep the build context to the source tree. Without this file `COPY . .` ships
+# 29 GB and, worse, overwrites the venv the image just built with the host's own
+# venv/ -- whose scripts carry an absolute shebang from wherever they were
+# created (here: #!/home/lu/Workspace/vllm_3090/venv/bin/python3.12). The next
+# RUN line then dies with "venv/bin/pip: not found" even though pip installed
+# fine one layer earlier.
+venv/
+models/
+
+# Volumes and generated artefacts: /cache and /app/models are mounted at run time.
+.qode/
+outputs/
+bench/results-*
+*.log
+
+.git/
+.gitignore
+__pycache__/
+*.pyc

@@ -36,7 +36,37 @@ bash batch/start_gemma.sh                           # serves :18030, logs to gem
 ```
 
 First boot takes ~4 minutes (torch.compile + FlashInfer JIT); later boots ~140 s
-from cache. Docker works too: `docker compose up -d`.
+from cache.
+
+### Docker
+
+```bash
+docker compose up -d                 # build, download the model, serve :18030
+docker compose logs -f batch         # follow the boot (first one takes ~9 min)
+docker compose ps                    # STATUS goes healthy when it is serving
+docker compose down                  # stop
+```
+
+`up -d` runs `prepare` first (model download into `./models`, skipped when it is
+already there), then `batch`. The healthcheck polls `/health`, so `depends_on`
+and `docker compose ps` tell you when the server is actually up rather than
+merely started; measured here: ~9 min on a cold cache, ~3.5 min (203 s) warm.
+
+The served model name is **`gemma-4-e4b`** — any other spelling returns 404:
+
+```bash
+curl -sS localhost:18030/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gemma-4-e4b","messages":[{"role":"user","content":"hello"}]}'
+```
+
+Other entrypoints: `docker compose run --rm prepare` (download only) and
+`docker compose run --rm batch verify` (run `verify.sh` inside the image).
+Knobs go in `.env` next to the compose file — `VLLM_API_KEY`, `MAX_LEN`,
+`MAX_SEQS`, `GPU_UTIL`, `SPEC`, `INT8_ACT`, ... — and are passed straight
+through. Two volumes persist: `./models` (checkpoints) and the `gemma-cache`
+volume (torch.compile / Triton / FlashInfer JIT caches, which is why the second
+boot is much faster).
 
 | script | what it does |
 |---|---|
@@ -331,8 +361,14 @@ checkpoint format and the audio decode path.
 | `INT8_ACT=int8` does nothing | the Marlin patches are missing; re-run `bash setup.sh` |
 | Slow first boot | normal: torch.compile + FlashInfer JIT. Later boots use the cache |
 | WSL2 | set `VLLM_WSL2_ENABLE_PIN_MEMORY=1` |
+| `docker compose build` dies on `ninja==1.13.4` | that version never existed on PyPI (releases jump 1.13.0 -> 1.13.2). `docker/requirements.txt` now pins 1.13.0, which is what the reference venv resolved to |
+| Build dies on `venv/bin/pip: not found` right after pip succeeded | `COPY . .` was overwriting the image's venv with the host's `venv/`, whose scripts carry an absolute shebang from the machine that created them. Fixed by `.dockerignore`; do not delete it |
+| `WARN vllm-gemma4-per-layer-head-dim.patch not applicable` | its second hunk only deleted a stray `DEBUG_SHAPE_MISMATCH` debug print that plain vLLM 0.27.1 does not have, so the whole patch was skipped and audio/full-attention prefill broke. The hunk is gone; the patch applies cleanly |
+| Model 404 from curl | the served name is **`gemma-4-e4b`**, not `gemma4-e4b` |
 
-Six source patches ship in `patches/` and are applied by `setup.sh`: four make
+Six source patches ship in `patches/` and are applied by `setup.sh` **and the
+Dockerfile** (`vllm-gemma4-heterogeneous-head-dim.patch` used to be listed in
+neither, even though the reference venv has it applied): four make
 vLLM 0.27.1 handle Gemma 4's heterogeneous attention head dimensions (256 on
 sliding layers, 512 on full-attention ones) and fp8 KV on sm86; two more are
 only needed for `INT8_ACT=int8`. `verify.sh` reports the state of each.

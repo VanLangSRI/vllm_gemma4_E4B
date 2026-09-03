@@ -20,13 +20,3 @@
          else:
              head_dim = config.head_dim
  
-@@ -1502,9 +1513,6 @@
-                     if name not in params_dict:
-                         continue
-                     param = params_dict[name]
--                    if loaded_weight.shape != param.shape:
--                        import sys as _sys
--                        print(f"DEBUG_SHAPE_MISMATCH {name}: ckpt {tuple(loaded_weight.shape)} vs param {tuple(param.shape)}", file=_sys.stderr, flush=True)
-                     weight_loader = getattr(
-                         param, "weight_loader", default_weight_loader
-                     )
